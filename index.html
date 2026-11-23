@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <!-- Красивая иконка-щит -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+    <title>🛡️ Проверка пароля</title>
+    
+    <link rel="stylesheet" href="https://pyscript.net/releases/2026.7.3/core.css" />
+    <script type="module" src="https://pyscript.net/releases/2026.7.3/core.js"></script>
+    <style>
+        :root {
+            --bg-grad-1: #e0eafc; --bg-grad-2: #cfdef3; 
+            --text: #222; --panel: rgba(255, 255, 255, 0.75); --border: #ddd;
+            --accent: #2980b9; --good: #27ae60; --warn: #e67e22; --bad: #c0392b;
+            --hint: #555; --gen-bg: rgba(234, 244, 252, 0.9);
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+        }
+        body.dark {
+            --bg-grad-1: #141E30; --bg-grad-2: #243B55;
+            --text: #e0e0e0; --panel: rgba(40, 40, 40, 0.75); --border: #444;
+            --accent: #3498db; --hint: #aaa; --gen-bg: rgba(31, 58, 77, 0.8);
+            --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+        
+        * { transition: background 0.4s ease, color 0.3s, border-color 0.3s, box-shadow 0.3s; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; padding: 40px 20px; min-height: 100vh;
+            background: linear-gradient(135deg, var(--bg-grad-1), var(--bg-grad-2));
+            background-attachment: fixed;
+            color: var(--text);
+            display: flex; justify-content: center; align-items: flex-start;
+        }
+
+        .container {
+            width: 100%; max-width: 620px;
+            background: var(--panel);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 30px; border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: var(--shadow);
+        }
+
+        h1 { margin-top: 0; margin-bottom: 8px; font-size: 24px; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+        .controls { display: flex; gap: 8px; }
+        
+        .icon-btn {
+            background: var(--panel); color: var(--text); border: 1px solid var(--border);
+            border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 14px;
+            font-weight: 500;
+        }
+        .icon-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+        
+        .field-wrap { position: relative; }
+        input[type=text], input[type=password] {
+            width: 100%; font-size: 16px; padding: 12px 44px 12px 12px;
+            border: 1px solid var(--border); border-radius: 8px; 
+            background: rgba(255, 255, 255, 0.9); color: #222;
+        }
+        body.dark input[type=text], body.dark input[type=password] { background: rgba(0, 0, 0, 0.3); color: #fff; }
+        
+        #eye {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; cursor: pointer; font-size: 18px; color: var(--hint);
+        }
+        
+        .bar-wrap { height: 8px; background: rgba(0,0,0,0.1); border-radius: 4px; margin: 16px 0 8px; overflow: hidden; }
+        #bar { height: 100%; width: 0; border-radius: 4px; transition: width 0.4s ease, background 0.4s ease; }
+        .score { font-size: 16px; font-weight: bold; line-height: 1.6; }
+        .good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+        
+        #result { margin-top: 10px; padding: 15px; border-radius: 8px; background: rgba(255,255,255,0.5); }
+        body.dark #result { background: rgba(0,0,0,0.2); }
+        ul { margin: 8px 0 0 0; padding-left: 20px; }
+        
+        hr { border: none; border-top: 1px solid var(--border); margin: 25px 0; }
+        
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .section-header h3 { margin: 0; }
+        .link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 14px; text-decoration: underline; }
+        
+        #generator-block { display: block; animation: fadeIn 0.4s ease; }
+        #generator-block.hidden { display: none; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+
+        .mode-tabs { display: flex; gap: 10px; margin-bottom: 15px; }
+        .mode-tab {
+            flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: 6px;
+            background: rgba(255,255,255,0.4); color: var(--text); cursor: pointer; font-size: 14px;
+        }
+        .mode-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: bold; }
+        body.dark .mode-tab { background: rgba(0,0,0,0.2); }
+        body.dark .mode-tab.active { background: var(--accent); }
+
+        .gen-opts { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0 15px; font-size: 14px; }
+        .gen-opts label { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 5px; }
+        
+        .gen-settings { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+        .gen-settings .row { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+        .gen-settings input[type=range] { flex: 1; cursor: pointer; accent-color: var(--accent); }
+        .gen-settings input[type=text], .gen-settings select { padding: 8px 12px; font-size: 14px; flex: 1; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+        #len-val, #word-val { font-weight: bold; width: 25px; text-align: center; }
+        
+        .gen-block-char, .gen-block-word { display: block; }
+        .gen-block-char.hidden, .gen-block-word.hidden { display: none; }
+
+        #gen-btn {
+            background: var(--accent); color: #fff; border: none; border-radius: 8px;
+            padding: 12px 18px; font-size: 16px; cursor: pointer; width: 100%; font-weight: bold;
+        }
+        #gen-btn:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(41, 128, 185, 0.3); }
+        
+        #gen-output {
+            margin-top: 15px; padding: 15px; background: var(--gen-bg); border-radius: 8px;
+            font-family: 'Courier New', monospace; font-size: 18px; word-break: break-all; display: none;
+            align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--border);
+        }
+        #gen-output span { flex: 1; font-weight: bold; }
+        .copy-btn {
+            background: var(--good); color: #fff; border: none; border-radius: 6px;
+            padding: 8px 14px; cursor: pointer; font-size: 14px; white-space: nowrap; font-weight: bold;
+        }
+        
+        .hint { font-size: 13px; color: var(--hint); margin-top: 8px; }
+        
+        #history { margin-top: 10px; font-size: 14px; }
+        #history div { padding: 6px 0; border-bottom: 1px dashed var(--border); }
+        
+        .fade-in { animation: fade 0.35s ease; }
+        @keyframes fade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+        .pop { animation: pop 0.4s ease; }
+        @keyframes pop { 0% { transform: scale(0.9); } 60% { transform: scale(1.02); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="topbar">
+            <h1 id="title">Проверка пароля</h1>
+            <div class="controls">
+                <button class="icon-btn" id="lang-btn">EN</button>
+                <button class="icon-btn" id="theme-btn">🌙</button>
+            </div>
+        </div>
+
+        <div class="field-wrap">
+            <input id="pwd" type="password" placeholder="Введите пароль..." />
+            <button id="eye" title="Показать/скрыть">👁</button>
+        </div>
+
+        <div class="bar-wrap"><div id="bar"></div></div>
+        <div id="result"></div>
+
+        <hr>
+
+        <div class="section-header">
+            <h3 id="gen-title">Генератор паролей</h3>
+            <button class="link-btn" id="toggle-gen-btn">Скрыть</button>
+        </div>
+        
+        <div id="generator-block">
+            <div class="mode-tabs">
+                <button class="mode-tab active" id="tab-char" data-i18n="mode_char">Символы</button>
+                <button class="mode-tab" id="tab-word" data-i18n="mode_word">Слова</button>
+            </div>
+
+            <!-- Блок генерации символов -->
+            <div class="gen-block-char" id="block-char">
+                <div class="gen-opts">
+                    <label><input type="checkbox" id="opt-lower" checked> <span data-i18n="lower">Строчные</span></label>
+                    <label><input type="checkbox" id="opt-upper" checked> <span data-i18n="upper">Заглавные</span></label>
+                    <label><input type="checkbox" id="opt-digit" checked> <span data-i18n="digits">Цифры</span></label>
+                    <label><input type="checkbox" id="opt-sym" checked> <span data-i18n="symbols">Спецсимволы</span></label>
+                </div>
+                
+                <div class="gen-settings">
+                    <div class="row">
+                        <span data-i18n="length">Длина:</span>
+                        <input type="range" id="opt-len" min="8" max="32" value="16" />
+                        <span id="len-val">16</span>
+                    </div>
+                    <div class="row">
+                        <span data-i18n="exclude">Исключить:</span>
+                        <input type="text" id="opt-exclude" placeholder="например: O0Il1" />
+                    </div>
+                    <div class="row">
+                        <span data-i18n="include">Добавить свои:</span>
+                        <input type="text" id="opt-include" placeholder="например: ~-_+=" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- Блок генерации фраз -->
+            <div class="gen-block-word hidden" id="block-word">
+                <div class="gen-settings">
+                    <div class="row">
+                        <span data-i18n="word_count">Кол-во слов:</span>
+                        <input type="range" id="opt-word-count" min="3" max="8" value="4" />
+                        <span id="word-val">4</span>
+                    </div>
+                    <div class="row">
+                        <span data-i18n="word_sep">Разделитель:</span>
+                        <select id="opt-word-sep">
+                            <option value="-">Дефис (-)</option>
+                            <option value=" ">Пробел ( )</option>
+                            <option value="_">Подчеркивание (_)</option>
+                            <option value=".">Точка (.)</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <span data-i18n="word_case">Заглавные:</span>
+                        <input type="checkbox" id="opt-word-cap" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    </div>
+                    <div class="row">
+                        <span data-i18n="word_num">С цифрой:</span>
+                        <input type="checkbox" id="opt-word-num" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    </div>
+                </div>
+            </div>
+
+            <button id="gen-btn">🎲 <span data-i18n="generate">Сгенерировать</span></button>
+            <div id="gen-output"><span id="gen-pwd"></span><button class="copy-btn" id="copy-btn" data-i18n="copy">Копировать</button></div>
+            <div class="hint" id="gen-hint"></div>
+        </div>
+
+        <hr>
+
+        <h3 id="hist-title">История проверок</h3>
+        <div id="history" class="hint">—</div>
+    </div>
+
+    <script type="py">
+        import re, math, random, js
+        from pyscript import when, document, window
+
+        weak_passwords = {"123456", "password", "qwerty", "letmein", "admin"}
+        history = []
+        
+        # Списки слов для парольных фраз
+        words_ru = [
+            "кофе", "лампа", "зебра", "океан", "тигр", "пицца", "звезда", "мост", "ветер", "камень",
+            "книга", "ручка", "стол", "стул", "окно", "дверь", "ключ", "замок", "хлеб", "молоко",
+            "яблоко", "банан", "апельсин", "лимон", "вишня", "арбуз", "дыня", "груша", "слива", "персик",
+            "собака", "кошка", "птица", "рыба", "лев", "медведь", "волк", "лиса", "заяц", "мышь",
+            "солнце", "луна", "небо", "облако", "дождь", "снег", "гроза", "радуга", "молния", "туман",
+            "машина", "поезд", "самолет", "корабль", "велосипед", "ракета", "лодка", "трактор", "автобус", "метро",
+            "город", "деревня", "лес", "поле", "река", "море", "гора", "холм", "пляж", "остров",
+            "музыка", "песня", "танец", "театр", "кино", "книга", "картина", "фото", "игра", "спорт",
+            "зима", "весна", "лето", "осень", "январь", "июль", "утро", "день", "вечер", "ночь",
+            "красный", "синий", "зеленый", "желтый", "белый", "черный", "серый", "розовый", "фиолетовый", "оранжевый"
+        ]
+        
+        words_en = [
+            "coffee", "lamp", "zebra", "ocean", "tiger", "pizza", "star", "bridge", "wind", "stone",
+            "book", "pen", "table", "chair", "window", "door", "key", "lock", "bread", "milk",
+            "apple", "banana", "orange", "lemon", "cherry", "watermelon", "melon", "pear", "plum", "peach",
+            "dog", "cat", "bird", "fish", "lion", "bear", "wolf", "fox", "hare", "mouse",
+            "sun", "moon", "sky", "cloud", "rain", "snow", "storm", "rainbow", "lightning", "fog",
+            "car", "train", "plane", "ship", "bike", "rocket", "boat", "tractor", "bus", "subway",
+            "city", "village", "forest", "field", "river", "sea", "mountain", "hill", "beach", "island",
+            "music", "song", "dance", "theater", "movie", "book", "picture", "photo", "game", "sport",
+            "winter", "spring", "summer", "autumn", "january", "july", "morning", "day", "evening", "night",
+            "red", "blue", "green", "yellow", "white", "black", "gray", "pink", "purple", "orange"
+        ]
+
+        I18N = {
+            "ru": {
+                "title": "Проверка пароля", "placeholder": "Введите пароль...",
+                "generate": "Сгенерировать", "copy": "Копировать", "copied": "Скопировано!",
+                "lower": "Строчные", "upper": "Заглавные", "digits": "Цифры", "symbols": "Спецсимволы",
+                "score": "Оценка", "entropy": "Энтропия", "crack": "Взлом",
+                "recom": "Рекомендации", "ok": "✅ Пароль выглядит надёжным!",
+                "weak": "Пароль в списке частых — крайне ненадёжен.",
+                "short": "Слишком короткий (минимум 8).", "long": "Отличная длина!",
+                "no_lower": "Добавьте строчные.", "no_upper": "Добавьте заглавные.",
+                "no_digit": "Добавьте цифры.", "no_sym": "Добавьте спецсимволы.",
+                "low_ent": "Низкая энтропия — легко подобрать.",
+                "seq": "Есть последовательности (123, qwerty, aaa) — легко угадать.",
+                "select_one": "Выберите хотя бы один тип символов!",
+                "history": "История проверок", "gen_title": "Генератор паролей",
+                "hist_empty": "— пока пусто —", "lang": "EN", "theme": "🌙", "theme_dark": "☀️",
+                "length": "Длина:", "exclude": "Исключить:", "include": "Добавить свои:",
+                "hide": "Скрыть", "show": "Показать",
+                "mode_char": "Символы", "mode_word": "Слова",
+                "word_count": "Кол-во слов:", "word_sep": "Разделитель:", "word_case": "Заглавные:", "word_num": "С цифрой:"
+            },
+            "en": {
+                "title": "Password Checker", "placeholder": "Enter password...",
+                "generate": "Generate", "copy": "Copy", "copied": "Copied!",
+                "lower": "Lower", "upper": "Upper", "digits": "Digits", "symbols": "Symbols",
+                "score": "Score", "entropy": "Entropy", "crack": "Crack time",
+                "recom": "Recommendations", "ok": "✅ Password looks strong!",
+                "weak": "Password is common — extremely weak.",
+                "short": "Too short (min 8).", "long": "Great length!",
+                "no_lower": "Add lowercase.", "no_upper": "Add uppercase.",
+                "no_digit": "Add digits.", "no_sym": "Add symbols.",
+                "low_ent": "Low entropy — easy to crack.",
+                "seq": "Contains sequences (123, qwerty, aaa) — easy to guess.",
+                "select_one": "Select at least one character type!",
+                "history": "History", "gen_title": "Password Generator",
+                "hist_empty": "— empty —", "lang": "RU", "theme": "🌙", "theme_dark": "☀️",
+                "length": "Length:", "exclude": "Exclude:", "include": "Custom:",
+                "hide": "Hide", "show": "Show",
+                "mode_char": "Chars", "mode_word": "Words",
+                "word_count": "Word count:", "word_sep": "Separator:", "word_case": "Capitalize:", "word_num": "With number:"
+            }
+        }
+        current_lang = "ru"
+        is_gen_hidden = False
+        current_mode = "char"
+
+        def t(key):
+            return I18N[current_lang].get(key, key)
+
+        def save_settings():
+            settings = {
+                "lang": current_lang,
+                "dark": document.body.classList.contains("dark"),
+                "gen_hidden": is_gen_hidden,
+                "mode": current_mode,
+                "len": document.getElementById("opt-len").value,
+                "opt_lower": document.getElementById("opt-lower").checked,
+                "opt_upper": document.getElementById("opt-upper").checked,
+                "opt_digit": document.getElementById("opt-digit").checked,
+                "opt_sym": document.getElementById("opt-sym").checked,
+                "word_count": document.getElementById("opt-word-count").value,
+                "word_sep": document.getElementById("opt-word-sep").value,
+                "word_cap": document.getElementById("opt-word-cap").checked,
+                "word_num": document.getElementById("opt-word-num").checked
+            }
+            js.localStorage.setItem("pwd_checker_settings", js.JSON.stringify(settings))
+
+        def load_settings():
+            global current_lang, is_gen_hidden, current_mode
+            saved = js.localStorage.getItem("pwd_checker_settings")
+            if not saved: return
+            
+            try:
+                s = js.JSON.parse(saved)
+                if s.lang: current_lang = s.lang
+                if s.dark: document.body.classList.add("dark")
+                if s.gen_hidden is not None: is_gen_hidden = s.gen_hidden
+                if s.mode: current_mode = s.mode
+                if s.len: document.getElementById("opt-len").value = s.len
+                if s.opt_lower is not None: document.getElementById("opt-lower").checked = s.opt_lower
+                if s.opt_upper is not None: document.getElementById("opt-upper").checked = s.opt_upper
+                if s.opt_digit is not None: document.getElementById("opt-digit").checked = s.opt_digit
+                if s.opt_sym is not None: document.getElementById("opt-sym").checked = s.opt_sym
+                if s.word_count: document.getElementById("opt-word-count").value = s.word_count
+                if s.word_sep: document.getElementById("opt-word-sep").value = s.word_sep
+                if s.word_cap is not None: document.getElementById("opt-word-cap").checked = s.word_cap
+                if s.word_num is not None: document.getElementById("opt-word-num").checked = s.word_num
+            except Exception:
+                pass
+
+        def apply_lang():
+            document.getElementById("title").innerText = t("title")
+            document.getElementById("pwd").placeholder = t("placeholder")
+            document.getElementById("gen-title").innerText = t("gen_title")
+            document.getElementById("hist-title").innerText = t("history")
+            document.getElementById("lang-btn").innerText = t("lang")
+            document.getElementById("theme-btn").innerText = t("theme_dark") if document.body.classList.contains("dark") else t("theme")
+            document.getElementById("toggle-gen-btn").innerText = t("show") if is_gen_hidden else t("hide")
+            
+            for el in document.querySelectorAll("[data-i18n]"):
+                key = el.getAttribute("data-i18n")
+                if key in I18N[current_lang]:
+                    el.innerText = t(key)
+            
+            document.getElementById("len-val").innerText = document.getElementById("opt-len").value
+            document.getElementById("word-val").innerText = document.getElementById("opt-word-count").value
+            render_history()
+            rerun_check()
+
+        def toggle_gen_visibility():
+            global is_gen_hidden
+            is_gen_hidden = not is_gen_hidden
+            block = document.getElementById("generator-block")
+            if is_gen_hidden:
+                block.classList.add("hidden")
+                document.getElementById("toggle-gen-btn").innerText = t("show")
+            else:
+                block.classList.remove("hidden")
+                document.getElementById("toggle-gen-btn").innerText = t("hide")
+            save_settings()
+
+        def switch_mode(mode):
+            global current_mode
+            current_mode = mode
+            tab_char = document.getElementById("tab-char")
+            tab_word = document.getElementById("tab-word")
+            block_char = document.getElementById("block-char")
+            block_word = document.getElementById("block-word")
+            
+            if mode == "char":
+                tab_char.classList.add("active")
+                tab_word.classList.remove("active")
+                block_char.classList.remove("hidden")
+                block_word.classList.add("hidden")
+            else:
+                tab_char.classList.remove("active")
+                tab_word.classList.add("active")
+                block_char.classList.add("hidden")
+                block_word.classList.remove("hidden")
+            
+            document.getElementById("gen-output").style.display = "none"
+            save_settings()
+
+        def entropy(password):
+            pool = 0
+            if re.search(r'[a-z]', password): pool += 26
+            if re.search(r'[A-Z]', password): pool += 26
+            if re.search(r'\d', password): pool += 10
+            if re.search(r'[^a-zA-Z0-9]', password): pool += 32
+            if pool == 0: return 0
+            return len(password) * math.log2(pool)
+
+        def crack_time(ent):
+            seconds = (2 ** ent) / 1e10
+            if seconds < 1: return "< 1 сек"
+            units = [("сек", 60), ("мин", 60), ("ч", 24), ("дн", 365), ("лет", 100)]
+            val = seconds
+            for name, div in units:
+                if val < div: return f"{val:.1f} {name}"
+                val /= div
+            return f"{val:.0f} веков"
+
+        def check_password(password):
+            score = 0; feedback = []
+            if password in weak_passwords:
+                feedback.append(t("weak")); return 0, feedback, entropy(password)
+            
+            if len(password) < 8: feedback.append(t("short"))
+            elif len(password) >= 12: score += 2
+            
+            if not re.search(r'[a-z]', password): feedback.append(t("no_lower"))
+            else: score += 1
+            if not re.search(r'[A-Z]', password): feedback.append(t("no_upper"))
+            else: score += 1
+            if not re.search(r'\d', password): feedback.append(t("no_digit"))
+            else: score += 1
+            if not re.search(r'[^a-zA-Z0-9]', password): feedback.append(t("no_sym"))
+            else: score += 1
+            
+            if re.search(r'(.)\1\1', password) or re.search(r'123|234|345|456|567|678|789|890|qwe|wer|ert|rty|asd|sdf|dfg', password.lower()):
+                score = max(0, score - 2)
+                feedback.append(t("seq"))
+
+            ent = entropy(password)
+            if ent < 30: feedback.append(t("low_ent"))
+            elif ent > 60: score += 2
+            
+            return score, feedback, ent
+
+        def generate_chars():
+            lower = "abcdefghijklmnopqrstuvwxyz"
+            upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            digits = "0123456789"
+            symbols = "!@#$%^&*"
+            
+            exclude_chars = set(document.getElementById("opt-exclude").value)
+            include_chars = document.getElementById("opt-include").value
+            
+            chosen = []
+            if document.getElementById("opt-lower").checked: chosen.append(lower)
+            if document.getElementById("opt-upper").checked: chosen.append(upper)
+            if document.getElementById("opt-digit").checked: chosen.append(digits)
+            if document.getElementById("opt-sym").checked: chosen.append(symbols)
+            
+            if not chosen and not include_chars:
+                document.getElementById("gen-output").style.display = "none"
+                document.getElementById("gen-hint").innerText = t("select_one")
+                return None
+                
+            chosen = ["".join([c for c in pool if c not in exclude_chars]) for pool in chosen]
+            include_chars = "".join([c for c in include_chars if c not in exclude_chars])
+            chosen = [pool for pool in chosen if pool]
+            if include_chars: chosen.append(include_chars)
+            
+            if not chosen:
+                document.getElementById("gen-hint").innerText = t("select_one")
+                return None
+
+            all_chars = "".join(chosen)
+            length = int(document.getElementById("opt-len").value)
+            
+            while True:
+                pwd_chars = []
+                for pool in chosen:
+                    pwd_chars.append(random.choice(pool))
+                
+                while len(pwd_chars) < length:
+                    pwd_chars.append(random.choice(all_chars))
+                
+                pwd_chars = pwd_chars[:length]
+                random.shuffle(pwd_chars)
+                pwd = "".join(pwd_chars)
+                
+                if pwd in weak_passwords: continue
+                if entropy(pwd) <= 30: continue
+                return pwd
+
+        def generate_words():
+            count = int(document.getElementById("opt-word-count").value)
+            sep = document.getElementById("opt-word-sep").value
+            cap = document.getElementById("opt-word-cap").checked
+            num = document.getElementById("opt-word-num").checked
+            
+            # Выбираем список слов в зависимости от языка интерфейса
+            current_word_list = words_ru if current_lang == "ru" else words_en
+            
+            selected_words = random.choices(current_word_list, k=count)
+            if cap:
+                selected_words = [w.capitalize() for w in selected_words]
+                
+            pwd = sep.join(selected_words)
+            
+            if num:
+                pwd += sep + str(random.randint(10, 99))
+                
+            return pwd
+
+        def render_check(pwd):
+            score, feedback, ent = check_password(pwd)
+            pct = int(score / 8 * 100)
+
+            if score <= 2: color = "var(--bad)"
+            elif score <= 5: color = "var(--warn)"
+            else: color = "var(--good)"
+
+            bar = document.getElementById("bar")
+            bar.style.width = f"{pct}%"
+            bar.style.background = color
+
+            ct = crack_time(ent)
+            html = f'<div class="score" style="color:{color}">{t("score")}: {score}/8 &nbsp;|&nbsp; {t("entropy")}: {ent:.1f} бит &nbsp;|&nbsp; {t("crack")}: {ct}</div>'
+            if feedback:
+                html += f'<p><b>{t("recom")}:</b></p><ul>'
+                for line in feedback:
+                    html += f"<li>{line}</li>"
+                html += "</ul>"
+            else:
+                html += f'<p class="good">{t("ok")}</p>'
+            res = document.getElementById("result")
+            res.innerHTML = html
+            res.classList.remove("fade-in")
+            res.offsetWidth
+            res.classList.add("fade-in")
+
+        def add_history(pwd, score):
+            masked = pwd[0] + "*" * max(0, len(pwd) - 2) + (pwd[-1] if len(pwd) > 1 else "")
+            history.insert(0, (masked, score))
+            history[:] = history[:5]
+            render_history()
+
+        def render_history():
+            el = document.getElementById("history")
+            if not history:
+                el.innerText = t("hist_empty"); return
+            el.innerHTML = ""
+            for masked, score in history:
+                cls = "bad" if score <= 2 else ("warn" if score <= 5 else "good")
+                el.innerHTML += f'<div class="{cls} pop">{masked} — {score}/8</div>'
+
+        def rerun_check():
+            pwd = document.getElementById("pwd").value
+            if pwd: render_check(pwd)
+
+        @when("input", "#pwd")
+        def on_input(event):
+            render_check(document.getElementById("pwd").value)
+
+        @when("click", "#eye")
+        def toggle_eye(event):
+            inp = document.getElementById("pwd")
+            if inp.type == "password":
+                inp.type = "text"; document.getElementById("eye").innerText = "🙈"
+            else:
+                inp.type = "password"; document.getElementById("eye").innerText = "👁"
+
+        @when("input", "#opt-len")
+        def on_len_change(event):
+            document.getElementById("len-val").innerText = document.getElementById("opt-len").value
+            save_settings()
+
+        @when("input", "#opt-word-count")
+        def on_word_count_change(event):
+            document.getElementById("word-val").innerText = document.getElementById("opt-word-count").value
+            save_settings()
+
+        @when("change", ".gen-opts input, #opt-exclude, #opt-include, #opt-word-sep, #opt-word-cap, #opt-word-num")
+        def on_settings_change(event):
+            save_settings()
+
+        @when("click", "#tab-char")
+        def on_tab_char(event):
+            switch_mode("char")
+
+        @when("click", "#tab-word")
+        def on_tab_word(event):
+            switch_mode("word")
+
+        @when("click", "#gen-btn")
+        def on_generate(event):
+            if current_mode == "char":
+                pwd = generate_chars()
+            else:
+                pwd = generate_words()
+                
+            if not pwd: return
+            
+            inp = document.getElementById("pwd")
+            inp.value = pwd
+            out = document.getElementById("gen-output")
+            out.style.display = "flex"
+            out.classList.remove("pop")
+            out.offsetWidth
+            out.classList.add("pop")
+            document.getElementById("gen-pwd").innerText = pwd
+            render_check(pwd)
+            score, _, _ = check_password(pwd)
+            add_history(pwd, score)
+
+        @when("click", "#copy-btn")
+        def on_copy(event):
+            pwd = document.getElementById("gen-pwd").innerText
+            if not pwd: return
+            window.navigator.clipboard.writeText(pwd)
+            btn = document.getElementById("copy-btn")
+            btn.innerText = t("copied")
+            js.setTimeout(lambda: setattr(btn, "innerText", t("copy")), 1500)
+
+        @when("click", "#theme-btn")
+        def toggle_theme(event):
+            body = document.body
+            body.classList.toggle("dark")
+            document.getElementById("theme-btn").innerText = t("theme_dark") if body.classList.contains("dark") else t("theme")
+            save_settings()
+
+        @when("click", "#lang-btn")
+        def toggle_lang(event):
+            global current_lang
+            current_lang = "en" if current_lang == "ru" else "ru"
+            apply_lang()
+            save_settings()
+            
+        @when("click", "#toggle-gen-btn")
+        def on_toggle_gen(event):
+            toggle_gen_visibility()
+
+        # Инициализация при старте
+        load_settings()
+        apply_lang()
+        if is_gen_hidden:
+            document.getElementById("generator-block").classList.add("hidden")
+            document.getElementById("toggle-gen-btn").innerText = t("show")
+        switch_mode(current_mode)
+    </script>
+</body>
+</html>
